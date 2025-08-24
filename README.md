@@ -11,4 +11,4 @@ can be re-written as an equation of motion for $\mathbf{m}$,
 \dot{\mathbf{m}} = - i \hat{H} \mathbf{m} + \frac{1}{2}\sum_k \hat{L_k} \mathbf{m} (\mathbf{m}^{-1} \hat{L_k} \mathbf{m})^\dagger - \hat{L_k}^\dagger \hat{L_k} \mathbf{m}.
 ```
 
-The notebook `low_rank_readout.ipynb` contains a working example comparing the full, rotating-wave approximation (RWA), and LRA evolutions in the context of transmon readout. The relevant source code for the LRA is found in the `src/low_rank.jl` file. 
+The notebook `low_rank_readout.ipynb` contains a minimal working example comparing the full, rotating-wave approximation (RWA), and LRA evolutions in the context of transmon readout. The relevant source code for the LRA is found in the `src/low_rank.jl` file. 
