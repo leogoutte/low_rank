@@ -1,6 +1,6 @@
 # Low-Rank Approximation
 
-This repository contains the source code and notebooks for the low-rank approximation to the Lindlad master equation. This code was used to produce the results in the paper Leo Goutte and Vincenzo Savona, "Low-rank optimal control of quantum devices", .
+This repository contains the source code and notebooks for the low-rank approximation to the Lindlad master equation. This code was used to produce the results in the paper Leo Goutte and Vincenzo Savona, "Low-rank optimal control of quantum devices", http://arxiv.org/abs/2508.18114.
 
 The Low-Rank Approximation (LRA) consists of truncating the full $N \times N$ density matrix $\hat{\rho} = {\mathbf{m}} {\mathbf{m}}^{\dagger}$ to a fixed rank $M \ll N$. The Lindblad equation
 ```math
