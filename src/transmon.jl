@@ -6,7 +6,7 @@ using QuantumToolbox
 Parameters
 =#
 
-εd_scale = 2.; # scale of the drive amplitude
+εd_scale = 2.; # scale of the drive amplitude to match the literature
 tp = (Nφ = 300, Ec = 2π * 0.315, Ej = 51 * 2π * 0.315, g = 2π * 0.150, ωa = 2π * 7.2, ωf = 2π * 7.21,
 J = 2π * 0.030, εd = εd_scale * 2π * 0.075, ωd = 45.1158, κ = 2π * 0.030, γ = 2π * 8 * 1e-6, η = 0.6);
 
@@ -161,8 +161,6 @@ function get_normal_modes(ωa, ωf, J, N1, N2, Nt)
     # original operators (useful for dissipators)
     a = U_fix_bis[1, 1] * c1' + U_fix_bis[1, 2] * c2' + U_fix_bis[1, 3] * c2 + U_fix_bis[1, 4] * c1
     f = U_fix_bis[2, 1] * c1' + U_fix_bis[2, 2] * c2' + U_fix_bis[2, 3] * c2 + U_fix_bis[2, 4] * c1;
-    adag = U_fix_bis[3, 1] * c1' + U_fix_bis[3, 2] * c2' + U_fix_bis[3, 3] * c2 + U_fix_bis[3, 4] * c1; # TODO: remove -- this is just to check if f' and fdag are the same
-    fdag = U_fix_bis[4, 1] * c1' + U_fix_bis[4, 2] * c2' + U_fix_bis[4, 3] * c2 + U_fix_bis[4, 4] * c1;
 
     return [c1, c2], [a, f], [ω1, ω2], γδs
 end
