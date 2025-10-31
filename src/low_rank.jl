@@ -126,8 +126,8 @@ function increase_rank!(integrator)
     integrator.p = merge(integrator.p, 
         (M = ip.M + 1,
         Lm = similar(m_new),
+        m_inv = similar(m_new, ip.M + 1, N),
         temp_MM = similar(m_new, M + 1, M + 1),
-        temp_m = similar(m_new),
         u_cache = similar(m_new, (M + 1) * N),
     ))
 end
@@ -183,8 +183,8 @@ function decrease_rank!(integrator)
     integrator.p = merge(integrator.p, 
         (M = ip.M - 1,
         Lm = similar(m_new),
+        m_inv = similar(m_new, ip.M + 1, N),
         temp_MM = similar(m_new, M - 1, M - 1),
-        temp_m = similar(m_new),
         u_cache = similar(m_new, (M - 1) * N),
     ))
 end
@@ -214,26 +214,37 @@ function dmdt!(dm, m, p, t)
 
     # unwrap parameters
     temp_MM = p.temp_MM
-    temp_m = p.temp_m
-    L = p.L
+    m_inv = p.m_inv
 
     # unitary evolution
     H = p.H
     mul!(dm, H, m, -1im, false)
-    
+
+    # compute inverse
+    fac = lu!(m' * m)
+    ldiv!(m_inv, fac, m')
+
     # dissipative evolution
     Lm = p.Lm
-    
+
     @inbounds for L in p.L
         mul!(Lm, L, m, true, false) # 0 allocations
-
-        copyto!(temp_m, m) # 0 allocations
-        fac = qr!(temp_m) # 20512 (14800 w/ ColumNorm()) -- removing column norm helps with allocations on next line
-        ldiv!(temp_MM, fac, Lm) # 30416 (111392 w/ ColumNorm()) -- removing column norm helps with allocations
-    
-        mul!(dm, Lm, adjoint(temp_MM), 0.5, true) # 48 allocations -- we don't temp because the speed tradeoff is favourable
-        mul!(dm, adjoint(L), Lm, -0.5, true) # 48 allocations
+        mul!(temp_MM, m_inv, Lm, true, false)
+        mul!(dm, Lm, adjoint(temp_MM), 0.5, true)
+        mul!(dm, adjoint(L), Lm, -0.5, true)
     end
+
+    
+    # @inbounds for L in p.L # TODO: check if pseudoinverse is faster when number of jump operators is large
+    #     mul!(Lm, L, m, true, false) # 0 allocations
+
+    #     copyto!(temp_m, m) # 0 allocations
+    #     fac = qr!(temp_m) # 20512 (14800 w/ ColumNorm()) -- removing column norm helps with allocations on next line
+    #     ldiv!(temp_MM, fac, Lm) # 30416 (111392 w/ ColumNorm()) -- removing column norm helps with allocations
+    
+    #     mul!(dm, Lm, adjoint(temp_MM), 0.5, true) # 48 allocations -- we don't temp because the speed tradeoff is favourable
+    #     mul!(dm, adjoint(L), Lm, -0.5, true) # 48 allocations
+    # end
 
     dm[:] = vec(dm)
 end
@@ -258,8 +269,7 @@ function dmdt_tuple!(dm, m, p, t)
 
     # unwrap parameters
     temp_MM = p.temp_MM
-    temp_m = p.temp_m
-    L = p.L
+    m_inv = p.m_inv
     drive_params = p.drive_params
 
     # unitary evolution
@@ -268,26 +278,38 @@ function dmdt_tuple!(dm, m, p, t)
     @inbounds for Hi in H[2:end]
         mul!(dm, Hi[1], m, -1im * Hi[2](drive_params, t), true) # TODO: speed up by getting rid of * multiplication -- still need to optimize
     end
-    
+
+    # compute inverse
+    fac = lu!(m' * m)
+    ldiv!(m_inv, fac, m')
+
     # dissipative evolution
     Lm = p.Lm
-    
+
     @inbounds for L in p.L
         mul!(Lm, L, m, true, false) # 0 allocations
-
-        copyto!(temp_m, m) # 0 allocations
-        fac = qr!(temp_m) # 20512 (14800 w/ ColumNorm()) -- removing column norm helps with allocations on next line
-        ldiv!(temp_MM, fac, Lm) # 30416 (111392 w/ ColumNorm()) -- removing column norm helps with allocations
-    
-        mul!(dm, Lm, adjoint(temp_MM), 0.5, true) # 48 allocations -- we don't temp because the speed tradeoff is favourable
-        mul!(dm, adjoint(L), Lm, -0.5, true) # 48 allocations
+        mul!(temp_MM, m_inv, Lm, true, false)
+        mul!(dm, Lm, adjoint(temp_MM), 0.5, true)
+        mul!(dm, adjoint(L), Lm, -0.5, true)
     end
+    
+    # @inbounds for L in p.L
+    #     mul!(Lm, L, m, true, false) # 0 allocations
+
+    #     copyto!(temp_m, m) # 0 allocations
+    #     fac = qr!(temp_m) # 20512 (14800 w/ ColumNorm()) -- removing column norm helps with allocations on next line
+    #     ldiv!(temp_MM, fac, Lm) # 30416 (111392 w/ ColumNorm()) -- removing column norm helps with allocations
+    
+    #     mul!(dm, Lm, adjoint(temp_MM), 0.5, true) # 48 allocations -- we don't temp because the speed tradeoff is favourable
+    #     mul!(dm, adjoint(L), Lm, -0.5, true) # 48 allocations
+    # end
 
     # reshape dm back to vector
     dm[:] = vec(dm)
 end
 
 # TODO: adapt everything to Qobj and QobjEvo
+# TODO: make callback helpers
 # TODO: reduce allocations and memory usage
 # TODO: cleanup some of the arguments into options
 """
@@ -323,8 +345,8 @@ function solve_lr(
         L = [get_data(L) for L in c_ops],
         drive_params = params, # this is useless if H is not a tuple
         Lm = similar(m0),
+        m_inv = similar(m0, M, N),
         temp_MM = similar(m0, M, M),
-        temp_m = similar(m0),
         e_ops = [get_data(op) for op in e_ops],
         u_cache = similar(m0, M * N),
         err_max = err_max,
@@ -406,8 +428,8 @@ function solve_lr(
         L = [get_data(L) for L in c_ops],
         drive_params = params,
         Lm = similar(m0),
+        m_inv = similar(m0, M, N),
         temp_MM = similar(m0, M, M),
-        temp_m = similar(m0),
         e_ops = [get_data(op) for op in e_ops],
         u_cache = similar(m0, M * N),
         err_max = err_max,
@@ -420,11 +442,12 @@ function solve_lr(
     prog_cb = FunctionCallingCallback((u, t, integrator) -> next!(prog); funcat = tlist)
 
     # Expectation value callback
-    exp_cb = nothing
     saved_values = nothing
     if !isempty(e_ops)
         saved_values = SavedValues(Float64, Vector{ComplexF64})
         exp_cb = SavingCallback(expval_compute, saved_values; saveat=tlist)
+    else
+        exp_cb = nothing
     end
 
     # Rank increase callback
@@ -486,5 +509,5 @@ function convert_lr_qobj(sol_lr)
         ρ = m * m';
         ρ / tr(ρ)
     end
-    return Qobj(ρ_lr)
+    return Qobj.(ρ_lr)
 end
